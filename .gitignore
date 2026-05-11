@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Python environments and packaging
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+build/
+dist/
+
+# Environment files
+.env
+.env.*
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Editor and local tooling
+.vscode/
+.vscode
+.idea/
+.idea
+.mcp.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Machine-local dotfiles accidentally placed in repo root
+.bash_profile
+.bashrc
+.profile
+.zprofile
+.zshrc
+.gitconfig
+.ripgreprc
