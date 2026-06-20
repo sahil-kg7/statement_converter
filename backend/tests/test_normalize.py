@@ -8,7 +8,7 @@ from app.normalize.description import normalize_description
 
 
 def test_normalize_transaction_date_accepts_datetime_like_values() -> None:
-    assert normalize_transaction_date("30-11-2025 19:28:51") == "30-11-2025"
+    assert normalize_transaction_date("30-11-2025 19:28:51") == "30-11-2025 19:28"
     assert normalize_transaction_date("03-Apr-2026") == "03-04-2026"
     assert normalize_transaction_date("01 Apr 2026") == "01-04-2026"
 

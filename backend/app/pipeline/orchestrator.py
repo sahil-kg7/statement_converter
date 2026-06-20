@@ -8,8 +8,10 @@ from app.csv_adapters.generic import GenericCsvParser
 from app.parsers.base import BankName, PdfBankParser, StatementKind
 from app.parsers.banks.hdfc_creditcard import HdfcCreditCardPdfParser
 from app.parsers.banks.hdfc_savings import HdfcSavingsPdfParser
+from app.parsers.banks.hdfc_savings_v2 import HdfcSavingsPdfParserV2
 from app.parsers.banks.kotak_creditcard import KotakCreditCardPdfParser
 from app.parsers.banks.kotak_savings import KotakSavingsPdfParser
+from app.parsers.banks.kotak_savings_v2 import KotakSavingsPdfParserV2
 from app.parsers.detector import detect_pdf_statement
 from app.parsers.text_extractor import extract_pdf_text
 from app.pipeline.fallback import run_fallback_chain
@@ -21,11 +23,17 @@ from app.config import settings
 class ConversionOrchestrator:
     def __init__(self) -> None:
         self.csv_parsers = [CanaraSavingsCsvParser(), GenericCsvParser()]
-        self.pdf_parsers: dict[tuple[BankName, StatementKind], PdfBankParser] = {
-            (BankName.HDFC, StatementKind.SAVINGS): HdfcSavingsPdfParser(),
-            (BankName.HDFC, StatementKind.CREDIT_CARD): HdfcCreditCardPdfParser(),
-            (BankName.KOTAK, StatementKind.SAVINGS): KotakSavingsPdfParser(),
-            (BankName.KOTAK, StatementKind.CREDIT_CARD): KotakCreditCardPdfParser(),
+        self.pdf_parsers: dict[tuple[BankName, StatementKind], list[PdfBankParser]] = {
+            (BankName.HDFC, StatementKind.SAVINGS): [
+                HdfcSavingsPdfParserV2(),
+                HdfcSavingsPdfParser(),
+            ],
+            (BankName.HDFC, StatementKind.CREDIT_CARD): [HdfcCreditCardPdfParser()],
+            (BankName.KOTAK, StatementKind.SAVINGS): [
+                KotakSavingsPdfParserV2(),
+                KotakSavingsPdfParser(),
+            ],
+            (BankName.KOTAK, StatementKind.CREDIT_CARD): [KotakCreditCardPdfParser()],
         }
 
     def convert(self, file_name: str, payload: bytes) -> ConversionResult:
@@ -45,21 +53,22 @@ class ConversionOrchestrator:
             )
 
             if detection is not None:
-                parser = self.pdf_parsers.get(
-                    (detection.bank, detection.statement_kind)
+                parser_list = self.pdf_parsers.get(
+                    (detection.bank, detection.statement_kind), []
                 )
-                if parser is not None:
-                    try:
-                        transactions = parser.parse(extracted.text)
-                        if len(transactions) >= max(1, settings.min_rows_threshold):
-                            return ConversionResult(
-                                transactions=transactions,
-                                detected_bank=detected_bank,
-                                statement_kind=detected_kind,
-                                conversion_source="adapter",
-                            )
-                    except ValueError:
-                        pass
+                if parser_list:
+                    for parser in parser_list:
+                        try:
+                            transactions = parser.parse(extracted.text)
+                            if len(transactions) >= max(1, settings.min_rows_threshold):
+                                return ConversionResult(
+                                    transactions=transactions,
+                                    detected_bank=detected_bank,
+                                    statement_kind=detected_kind,
+                                    conversion_source="adapter",
+                                )
+                        except ValueError:
+                            continue
                 else:
                     adapter_layer = (
                         f"adapter:{detected_bank}:{detected_kind}:unimplemented"

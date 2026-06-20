@@ -9,7 +9,7 @@ from app.parsers.base import BankName, PdfBankParser, StatementKind
 from app.pipeline.models import Transaction
 
 
-ROW_RE = re.compile(r"^\s*(\d{2}-\w{3}-\d{4})\s+")
+ROW_RE = re.compile(r"^\s*(\d{2}-\w{3}-\d{4}(?:\s+\d{1,2}:\d{2}\s*(?:AM|PM))?)\s+", re.IGNORECASE)
 AMOUNT_RE = re.compile(r"([\d,]+\.\d{2})(?:\s+Cr)?$")
 
 
@@ -79,6 +79,20 @@ class KotakCreditCardPdfParser(PdfBankParser):
             or stripped == "SAHIL KHANNA"
         )
 
+    @staticmethod
+    def _convert_to_24h(date_text: str) -> str:
+        match = re.match(r"^(\d{2}-\w{3}-\d{4})\s+(\d{1,2}:\d{2})\s+(AM|PM)$", date_text, re.IGNORECASE)
+        if match is None:
+            return date_text
+        date_part, time_part, meridiem = match.groups()
+        if meridiem.upper() == "PM" and not time_part.startswith("12"):
+            hours, minutes = time_part.split(":")
+            hours = str(int(hours) + 12)
+            time_part = f"{hours}:{minutes}"
+        elif meridiem.upper() == "AM" and time_part.startswith("12"):
+            time_part = f"00:{time_part.split(':')[1]}"
+        return f"{date_part} {time_part}"
+
     def _parse_row(
         self,
         line: str,
@@ -88,7 +102,7 @@ class KotakCreditCardPdfParser(PdfBankParser):
         if match is None:
             return None
 
-        date_text = match.group(1)
+        date_text = self._convert_to_24h(match.group(1))
         remainder = line[match.end() :].strip()
         amount_match = AMOUNT_RE.search(remainder)
         if amount_match is None:

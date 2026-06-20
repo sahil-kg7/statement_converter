@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class Transaction(BaseModel):
-    transaction_date: str = Field(pattern=r"^\d{2}-\d{2}-\d{4}$")
+    transaction_date: str = Field(pattern=r"^\d{2}-\d{2}-\d{4}( \d{2}:\d{2})?$")
     description: str = Field(min_length=1)
     amount: Decimal
 

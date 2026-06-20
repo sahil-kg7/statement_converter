@@ -15,7 +15,11 @@ def detect_pdf_statement(extracted_text: str) -> PdfDetectionResult | None:
     if "savings account transactions" in lower_text and "account type savings" in lower_text:
         return PdfDetectionResult(BankName.KOTAK, StatementKind.SAVINGS)
 
-    if "savings account details" in lower_text and "savings a/c - resident" in lower_text:
+    # Kotak savings V2 format with signed DEBIT/CREDIT(₹) column
+    if "debit/credit(₹)" in lower_text and "balance(₹)" in lower_text:
+        return PdfDetectionResult(BankName.KOTAK, StatementKind.SAVINGS)
+
+    if "savings a/c - resident" in lower_text:
         return PdfDetectionResult(BankName.HDFC, StatementKind.SAVINGS)
 
     return None

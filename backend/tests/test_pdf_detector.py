@@ -22,6 +22,13 @@ def test_hdfc_savings_detection() -> None:
     assert detection.statement_kind is StatementKind.SAVINGS
 
 
+def test_hdfc_savings_v2_detection() -> None:
+    detection = detect_pdf_statement(_extract("hdfc 1 march to 19 june.pdf"))
+    assert detection is not None
+    assert detection.bank is BankName.HDFC
+    assert detection.statement_kind is StatementKind.SAVINGS
+
+
 def test_hdfc_credit_card_detection() -> None:
     detection = detect_pdf_statement(_extract("HDFC_CC_Apr_2026.pdf"))
     assert detection is not None

@@ -11,6 +11,7 @@ from app.pipeline.models import Transaction
 
 ROW_RE = re.compile(r"^\s*\d+\s+(\d{2}\s+\w{3}\s+\d{4})\s+(.*)$")
 AMOUNT_RE = re.compile(r"[\d,]+\.\d{2}")
+_TIME_PREFIX_RE = re.compile(r"^(\d{1,2}:\d{2}\s+(?:AM|PM))(\s+.*)?$", re.IGNORECASE)
 IGNORE_LINE_TOKENS = ("Opening Balance", "Account Summary", "End of Statement", "Statement Generated on")
 
 
@@ -24,6 +25,7 @@ class KotakSavingsPdfParser(PdfBankParser):
         positions = self._column_positions(header_line)
         current: dict[str, object] | None = None
         transactions: list[Transaction] = []
+        self._pending_time: str | None = None
 
         for line in self._iter_table_lines(lines, header_line):
             match = ROW_RE.match(line)
@@ -32,10 +34,11 @@ class KotakSavingsPdfParser(PdfBankParser):
                 current = self._start_transaction(line, match, positions)
                 continue
 
+            line = self._strip_time_prefix(line)
             self._append_continuation(current, line)
 
         if current is not None:
-            transactions.append(self._build_transaction(current))
+            transactions.append(self._build_transaction(current, self._pending_time))
 
         return transactions
 
@@ -80,7 +83,8 @@ class KotakSavingsPdfParser(PdfBankParser):
         current: dict[str, object] | None,
     ) -> dict[str, object] | None:
         if current is not None:
-            transactions.append(self._build_transaction(current))
+            transactions.append(self._build_transaction(current, self._pending_time))
+            self._pending_time = None
         return None
 
     def _start_transaction(
@@ -114,7 +118,32 @@ class KotakSavingsPdfParser(PdfBankParser):
         if description_continuation:
             current["description_parts"].append(description_continuation)
 
-    def _build_transaction(self, raw_transaction: dict[str, object]) -> Transaction:
+    def _strip_time_prefix(self, line: str) -> str:
+        stripped = line.strip()
+        match = _TIME_PREFIX_RE.match(stripped)
+        if match is not None:
+            self._pending_time = self._convert_to_24h(match.group(1))
+            remainder = match.group(2) or ""
+            if remainder.strip():
+                return remainder
+            return ""
+        return line
+
+    @staticmethod
+    def _convert_to_24h(time_str: str) -> str:
+        match = re.match(r"^(\d{1,2}:\d{2})\s*(AM|PM)$", time_str.strip(), re.IGNORECASE)
+        if match is None:
+            return time_str
+        time_part, meridiem = match.groups()
+        if meridiem.upper() == "PM" and not time_part.startswith("12"):
+            hours, minutes = time_part.split(":")
+            hours = str(int(hours) + 12)
+            time_part = f"{hours}:{minutes}"
+        elif meridiem.upper() == "AM" and time_part.startswith("12"):
+            time_part = f"00:{time_part.split(':')[1]}"
+        return time_part
+
+    def _build_transaction(self, raw_transaction: dict[str, object], pending_time: str | None = None) -> Transaction:
         description_parts = raw_transaction["description_parts"]
         assert isinstance(description_parts, list)
         description = normalize_description(" ".join(part for part in description_parts if part and part != "-"))
@@ -122,8 +151,12 @@ class KotakSavingsPdfParser(PdfBankParser):
         deposit = parse_decimal_amount(str(raw_transaction["deposit"])) or parse_decimal_amount("0")
         amount = deposit if deposit > 0 else -withdrawal
 
+        date_str = str(raw_transaction["date"])
+        if pending_time:
+            date_str = f"{date_str} {pending_time}"
+
         return Transaction(
-            transaction_date=normalize_transaction_date(str(raw_transaction["date"])),
+            transaction_date=normalize_transaction_date(date_str),
             description=description,
             amount=amount,
         )

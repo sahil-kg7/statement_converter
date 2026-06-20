@@ -98,7 +98,7 @@ class HdfcCreditCardPdfParser(PdfBankParser):
         if match is None:
             return None
 
-        date_text = match.group(1)
+        date_text = f"{match.group(1)} {match.group(2)}"
         description_chunk = line[header_desc_start:header_amount_start].strip()
         amount_chunk = line[header_amount_start:header_pi_start].strip()
         if not description_chunk or not amount_chunk:
